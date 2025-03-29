@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MM Coursework - AI Chat</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        background-color: #1e1e2e;
+      }
+      .nav-link {
+        transition: all 0.3s ease;
+        padding-bottom: 0.25rem;
+      }
+      .nav-link.active {
+        border-bottom: 3px solid #4a4a6a;
+        color: white;
+      }
+      .chat-messages {
+        height: calc(100vh - 280px);
+        scrollbar-width: thin;
+        scrollbar-color: #4a4a6a transparent;
+      }
+      .message-bubble {
+        max-width: 75%;
+        border-radius: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navigation -->
+    <nav
+      class="fixed w-full top-0 bg-gray-900 py-4 px-6 flex justify-between items-center"
+    >
+      <div class="text-white font-bold text-xl">MM Coursework</div>
+      <div class="flex space-x-6">
+        <a
+          href="/chat"
+          class="nav-link text-gray-400 hover:text-white <% if (typeof currentTab !== 'undefined' && currentTab === 'chat') { %>active<% } %>"
+        >
+          Chat
+        </a>
+        <a
+          href="/image"
+          class="nav-link text-gray-400 hover:text-white <% if (typeof currentTab !== 'undefined' && currentTab === 'image') { %>active<% } %>"
+        >
+          Image
+        </a>
+        <a
+          href="/audio"
+          class="nav-link text-gray-400 hover:text-white <% if (typeof currentTab !== 'undefined' && currentTab === 'audio') { %>active<% } %>"
+        >
+          Audio
+        </a>
+        <a
+          href="/video"
+          class="nav-link text-gray-400 hover:text-white <% if (typeof currentTab !== 'undefined' && currentTab === 'video') { %>active<% } %>"
+        >
+          Video
+        </a>
+      </div>
+    </nav>
+
+    <!-- Chat-specific Content -->
+    <main class="container mx-auto pt-20 px-4">
+      <div class="max-w-3xl mx-auto">
+        <!-- Chat Messages Container -->
+        <div
+          class="chat-messages overflow-y-auto mb-4 space-y-4 bg-gray-800 rounded-lg p-4"
+        >
+          <% if (Array.isArray(chatHistory) && chatHistory.length > 0) { %> <%
+          chatHistory.forEach(msg => { %> <% if (msg.role === 'user') { %>
+          <!-- User bubble -->
+          <div class="message-bubble p-4 bg-gray-700 ml-auto">
+            <%= msg.content %>
+          </div>
+          <% } else { %>
+          <!-- Assistant response, plain text, no bubble -->
+          <div class="mt-2 text-gray-100"><%= msg.content %></div>
+          <% } %> <% }) %> <% } else { %>
+          <div class="text-gray-500 text-center py-12">
+            <p class="text-xl">Your chat history will appear here</p>
+            <p class="mt-2 text-sm">Start a conversation below</p>
+          </div>
+          <% } %>
+        </div>
+
+        <!-- Input Area -->
+        <form
+          id="chat-form"
+          method="POST"
+          action="/chat-gen"
+          class="bg-gray-800 rounded-lg p-4"
+        >
+          <div class="flex gap-2">
+            <textarea
+              name="prompt"
+              id="prompt"
+              rows="2"
+              class="w-full p-4 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              placeholder="Type your message..."
+            ></textarea>
+            <button
+              type="submit"
+              class="bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg transition flex items-center justify-center"
+              style="min-width: 56px"
+            >
+              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fill-rule="evenodd"
+                  d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+            </button>
+          </div>
+        </form>
+      </div>
+    </main>
+
+    <script>
+      const chatForm = document.getElementById("chat-form");
+      const promptInput = document.getElementById("prompt");
+      const chatMessages = document.querySelector(".chat-messages");
+
+      if (chatForm) {
+        chatForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const prompt = promptInput.value.trim();
+          if (!prompt) return;
+
+          // Clear input immediately
+          promptInput.value = "";
+
+          // Optionally add user bubble right away (live preview in UI)
+          addMessage(prompt, "user");
+
+          try {
+            // You could show a "loading" message or spinner here if desired
+            const response = await fetch("/chat-gen", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ prompt }),
+            });
+
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+              throw new Error(data.error || "Unknown error");
+            }
+
+            // Display assistant response as plain text (no bubble)
+            addMessage(data.response, "assistant");
+          } catch (error) {
+            // Show error in plain text
+            addMessage(`Error: ${error.message}`, "assistant");
+          }
+        });
+      }
+
+      function addMessage(content, role) {
+        const messageDiv = document.createElement("div");
+        if (role === "user") {
+          // User bubble
+          messageDiv.className = "message-bubble p-4 bg-gray-700 ml-auto mb-4";
+        } else {
+          // Assistant or error: plain text
+          messageDiv.className = "mt-2 text-gray-100 mb-4";
+        }
+        messageDiv.textContent = content;
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+    </script>
+  </body>
+</html>

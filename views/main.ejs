@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MM Coursework - AI Generation</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        background-color: #1e1e2e;
+      }
+      .nav-link {
+        transition: all 0.3s ease;
+        padding-bottom: 0.25rem;
+      }
+      .nav-link.active {
+        border-bottom: 3px solid #4a4a6a;
+        color: white;
+      }
+      .result-card {
+        background-color: #2d2d44;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navigation -->
+    <nav
+      class="fixed w-full top-0 bg-gray-900 py-4 px-6 flex justify-between items-center"
+    >
+      <div class="text-white font-bold text-xl">MM Coursework</div>
+      <div class="flex space-x-6">
+        <a
+          href="/chat"
+          class="nav-link text-gray-400 hover:text-white <% if (typeof currentTab !== 'undefined' && currentTab === 'chat') { %>active<% } %>"
+        >
+          Chat
+        </a>
+        <a
+          href="/image"
+          class="nav-link text-gray-400 hover:text-white <% if (typeof currentTab !== 'undefined' && currentTab === 'image') { %>active<% } %>"
+        >
+          Image
+        </a>
+        <a
+          href="/audio"
+          class="nav-link text-gray-400 hover:text-white <% if (typeof currentTab !== 'undefined' && currentTab === 'audio') { %>active<% } %>"
+        >
+          Audio
+        </a>
+        <a
+          href="/video"
+          class="nav-link text-gray-400 hover:text-white <% if (typeof currentTab !== 'undefined' && currentTab === 'video') { %>active<% } %>"
+        >
+          Video
+        </a>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container mx-auto pt-20 px-4">
+      <div class="max-w-3xl mx-auto">
+        <form
+          action="/<%= typeof currentTab !== 'undefined' ? currentTab + '-gen' : 'text-gen' %>"
+          method="POST"
+          class="space-y-6"
+        >
+          <!-- Prompt Textarea -->
+          <textarea
+            name="prompt"
+            id="prompt"
+            rows="4"
+            class="w-full p-4 bg-gray-800 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            placeholder="Enter your creative prompt here..."
+          ></textarea>
+
+          <!-- Generate Button -->
+          <button
+            type="submit"
+            class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition flex items-center justify-center"
+          >
+            <span class="mr-2">GENERATE</span>
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path
+                fill-rule="evenodd"
+                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 1.414L10.586 9H7a1 1 0 100 2h3.586l-1.293 1.293a1 1 0 101.414 1.414l3-3a1 1 0 000-1.414z"
+                clip-rule="evenodd"
+              />
+            </svg>
+          </button>
+        </form>
+
+        <!-- Result Display -->
+        <div class="result-card mt-8 rounded-lg p-6">
+          <% if (typeof result !== 'undefined') { %> <% if (result.type ===
+          'text') { %> <% if (result.isUserMessage) { %>
+          <div class="bg-blue-500 text-white p-4 rounded-lg mb-2">
+            <%= result.generated_text %>
+          </div>
+          <% } else { %>
+          <p class="text-white text-lg leading-relaxed">
+            <%= result.generated_text %>
+          </p>
+          <% } %> <% } else if (result.type === 'image') { %>
+          <div class="relative group">
+            <img
+              src="<%= result.imageUrl %>"
+              class="w-full rounded-lg shadow-xl transform transition-transform group-hover:scale-105"
+              alt="Generated Image"
+            />
+            <div
+              class="absolute bottom-0 right-0 m-4 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <a
+                href="<%= result.imageUrl %>"
+                download="generated-image.png"
+                class="bg-white text-gray-900 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-100"
+                >Download</a
+              >
+            </div>
+          </div>
+          <% } else if (result.type === 'audio') { %>
+          <div class="bg-gray-800 p-4 rounded-lg">
+            <audio controls class="w-full">
+              <source src="<%= result.audioUrl %>" type="audio/mpeg" />
+            </audio>
+            <div class="mt-4 flex justify-end">
+              <a
+                href="<%= result.audioUrl %>"
+                download="generated-audio.mp3"
+                class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                >Download Audio</a
+              >
+            </div>
+          </div>
+          <% } else if (result.type === 'video') { %>
+          <div class="relative group">
+            <video controls class="w-full rounded-lg shadow-xl">
+              <source src="<%= result.videoUrl %>" type="video/mp4" />
+            </video>
+            <div
+              class="absolute bottom-0 right-0 m-4 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <a
+                href="<%= result.videoUrl %>"
+                download="generated-video.mp4"
+                class="bg-white text-gray-900 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-100"
+                >Download</a
+              >
+            </div>
+          </div>
+          <% } %> <% } else { %>
+          <div class="text-gray-500 text-center py-12">
+            <p class="text-xl">Your generated content will appear here</p>
+            <p class="mt-2 text-sm">
+              Enter a prompt and click generate to get started
+            </p>
+          </div>
+          <% } %>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>

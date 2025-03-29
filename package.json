@@ -1,0 +1,25 @@
+{
+  "name": "hod",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "tail": "npx @tailwindcss/cli -i ./src/tailwind.css -o ./public/styles.css --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.0",
+    "@huggingface/inference": "^3.6.2",
+    "@tailwindcss/cli": "^4.0.14",
+    "axios": "^1.8.4",
+    "body-parser": "^1.20.3",
+    "buffer": "^6.0.3",
+    "dotenv": "^16.4.7",
+    "ejs": "^3.1.10",
+    "express": "^4.21.2",
+    "tailwindcss": "^4.0.14"
+  }
+}
