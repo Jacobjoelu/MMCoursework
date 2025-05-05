@@ -94,8 +94,8 @@
 
         <!-- Result Display -->
         <div class="result-card mt-8 rounded-lg p-6">
-          <% if (typeof result !== 'undefined') { %> <% if (result.type ===
-          'text') { %> <% if (result.isUserMessage) { %>
+          <% if (typeof result !== 'undefined' && result) { %> <% if
+          (result.type === 'text') { %> <% if (result.isUserMessage) { %>
           <div class="bg-blue-500 text-white p-4 rounded-lg mb-2">
             <%= result.generated_text %>
           </div>

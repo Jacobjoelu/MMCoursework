@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from "dotenv";
+import RunwayML from "@runwayml/sdk";
 
 dotenv.config();
 
@@ -30,6 +31,14 @@ const handleError = (res, error, type) => {
   });
 };
 
+async function fetchWithTimeout(url, options = {}, timeout = 30000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  const response = await fetch(url, { ...options, signal: controller.signal });
+  clearTimeout(id);
+  return response;
+}
+
 const chatGen = async (req, res) => {
   try {
     const { prompt } = req.body;
@@ -41,12 +50,32 @@ const chatGen = async (req, res) => {
     const responseText =
       result.candidates?.[0]?.content?.parts?.[0]?.text || "No response";
 
-    res.render("main", { output: responseText });
+    // For example, if you're maintaining chatHistory in session or DB:
+    // const chatHistory = [...existingChatHistory, { role: 'user', content: prompt }, { role: 'assistant', content: responseText }];
+    // For simplicity, we pass the response only:
+    res.render("main", {
+      output: responseText,
+      currentTab: "chat",
+      chatHistory: [
+        { role: "user", content: prompt },
+        { role: "assistant", content: responseText },
+      ],
+      result: {
+        type: "text",
+        generated_text: responseText,
+      },
+    });
   } catch (error) {
     console.error("Chat Error:", error);
-    res.render("main", { output: "Error generating response." });
+    res.render("main", {
+      output: "Error generating response.",
+      currentTab: "chat",
+      error: error.message,
+      chatHistory: [],
+    });
   }
 };
+
 
 // Image Generation Controller (Magic Hour)
 const imgGen = async (req, res) => {
@@ -85,11 +114,11 @@ const imgGen = async (req, res) => {
 
     const { id } = await response.json();
 
-    // Polling mechanism to check the status of the image generation
+    // Polling mechanism
     let status = "queued";
     let imageUrl = "";
     while (status !== "complete") {
-      await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait for 5 seconds before polling again
+      await new Promise((resolve) => setTimeout(resolve, 5000));
       const statusResponse = await fetch(`${BASE_URL}/image-projects/${id}`, {
         headers: {
           Authorization: `Bearer ${MAGIC_HOUR_API_KEY}`,
@@ -107,14 +136,16 @@ const imgGen = async (req, res) => {
     res.render("main", {
       result: {
         type: "image",
-        imageUrl: generatedImageUrl,
+        imageUrl: imageUrl,
       },
+      currentTab: "image",
     });
   } catch (error) {
     console.error("Image Generation Error:", error);
-    res.status(500).json({
+    res.status(500).render("main", {
       error: error.message || "Failed to generate image",
-      success: false,
+      currentTab: "image",
+      result: null, // Ensures result is always defined to prevent EJS errors
     });
   }
 };
@@ -123,129 +154,159 @@ const imgGen = async (req, res) => {
 const audGen = async (req, res) => {
   try {
     const { prompt } = req.body;
-    if (!prompt)
+    if (!prompt) {
       return res.status(400).render("main", {
         message: "No prompt provided",
         currentTab: "audio",
       });
+    }
 
     console.log("Audio Generation Request:", { prompt });
 
-    // Use Gemini for text-to-speech
-    // Note: As of March 2025, if Gemini has a specific TTS API endpoint, you would use it here
-    // This is a placeholder implementation assuming Gemini has TTS capabilities
-    const ttsEndpoint =
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent";
+    const voiceId = "21m00Tcm4TlvDq8ikWAM"; // Replace with a valid voice ID
 
-    const response = await fetch(ttsEndpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": process.env.GEM,
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: prompt,
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          responseFormat: "audio", // Assuming Gemini supports this
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "xi-api-key": process.env.LAB,
         },
-      }),
-    });
+        body: JSON.stringify({
+          text: prompt,
+          model_id: "eleven_multilingual_v2",
+          output_format: "mp3",
+        }),
+      }
+    );
 
     if (!response.ok) {
-      throw new Error(`Gemini TTS API error: ${response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(
+        `ElevenLabs TTS API error: ${response.status} - ${errorText}`
+      );
     }
 
     const audioData = await response.arrayBuffer();
-    console.log(
-      "Gemini Audio Response received, size:",
-      audioData.byteLength,
-      "bytes"
-    );
 
     res.render("main", {
       currentTab: "audio",
       result: {
         type: "audio",
-        audioBuffer: Buffer.from(audioData).toString("base64"),
+        audioUrl: `data:audio/mpeg;base64,${Buffer.from(audioData).toString(
+          "base64"
+        )}`,
       },
     });
   } catch (error) {
-    handleError(res, error, "audio");
+    console.error("Audio Generation Error:", error);
+    res.status(500).render("main", {
+      error: error.message || "Failed to generate audio",
+      currentTab: "audio",
+      result: null,
+    });
   }
 };
 
 // Video Generation Controller (Magic Hour)
 const vidGen = async (req, res) => {
   try {
-    const {
-      prompt,
-      end_seconds = 5,
-      orientation = "landscape",
-      name = `Text To Video - ${new Date().toISOString()}`,
-    } = req.body;
-
+    const { prompt, duration = 5 } = req.body;
     if (!prompt) {
-      return res
-        .status(400)
-        .render("main", { error: "Prompt is required", videoUrl: null });
+      return res.status(400).render("main", {
+        error: "Prompt is required",
+        currentTab: "video",
+        result: null,
+      });
     }
 
-    const response = await fetch(`${BASE_URL}/text-to-video`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${MAGIC_HOUR_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name,
-        end_seconds,
-        orientation,
-        style: { prompt },
-      }),
-    });
+    console.log("Minimax Video Generation Request:", { prompt });
 
-    if (!response.ok) {
-      const errorData = await response.json();
+    // Start a video generation job with Minimax.
+    // The endpoint and payload fields are based on the documentation.
+    const startResponse = await fetch(
+      "https://api.minimaxi.chat/v1/video_generation",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.MINIMAX}`,
+        },
+        body: JSON.stringify({
+          prompt: prompt,
+          duration: duration,
+          resolution: "720p", // Adjust or remove if not required by the docs.
+        }),
+      }
+    );
+
+    if (!startResponse.ok) {
+      const errorData = await startResponse.json();
       throw new Error(
-        `Video generation failed: ${errorData.error || response.statusText}`
+        `Minimax API error: ${errorData.error || startResponse.statusText}`
       );
     }
 
-    const { id } = await response.json();
+    // Assume the response returns a job ID (named jobId)
+    const { jobId } = await startResponse.json();
+    console.log("Minimax Job Started:", jobId);
 
-    // Polling mechanism to check the status of the video generation
-    let status = "queued";
+    // Poll for job status
+    let status = "pending";
     let videoUrl = "";
-    while (status !== "complete") {
-      await new Promise((resolve) => setTimeout(resolve, 10000)); // Wait for 10 seconds before polling again
-      const statusResponse = await fetch(`${BASE_URL}/video-projects/${id}`, {
-        headers: {
-          Authorization: `Bearer ${MAGIC_HOUR_API_KEY}`,
-        },
-      });
+    const startTime = Date.now();
+    const maxWaitTime = 300000; // 5 minutes max
+
+    while (status !== "completed" && Date.now() - startTime < maxWaitTime) {
+      await new Promise((resolve) => setTimeout(resolve, 10000)); // Wait 10 seconds
+
+      const statusResponse = await fetch(
+        `https://api.minimax.ai/v1/video/jobs/${jobId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.MINIMAX}`,
+          },
+        }
+      );
+
+      if (!statusResponse.ok) {
+        const errorData = await statusResponse.json();
+        throw new Error(
+          `Minimax Job status error: ${
+            errorData.error || statusResponse.statusText
+          }`
+        );
+      }
+
       const statusData = await statusResponse.json();
       status = statusData.status;
-      if (status === "complete") {
-        videoUrl = statusData.downloads[0].url;
-      } else if (status === "error") {
-        throw new Error("Video generation encountered an error.");
+
+      if (status === "completed") {
+        videoUrl = statusData.video_url; // Adjust the property name per documentation
+        break;
+      } else if (status === "failed") {
+        throw new Error("Video generation failed at Minimax.");
       }
     }
 
-    res.render("main", { videoUrl, error: null });
+    if (!videoUrl) {
+      throw new Error("Video generation timed out after 5 minutes");
+    }
+
+    res.render("main", {
+      result: {
+        type: "video",
+        videoUrl: videoUrl,
+      },
+      currentTab: "video",
+    });
   } catch (error) {
-    console.error("Video Generation Error:", error);
+    console.error("Minimax Video Generation Error:", error);
     res.status(500).render("main", {
       error: error.message || "Failed to generate video",
-      videoUrl: null,
+      currentTab: "video",
+      result: null,
     });
   }
 };

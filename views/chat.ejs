@@ -68,25 +68,21 @@
     <!-- Chat-specific Content -->
     <main class="container mx-auto pt-20 px-4">
       <div class="max-w-3xl mx-auto">
-        <!-- Chat Messages Container -->
+        <!-- Chat Messages Container (Transparent background, no placeholder) -->
         <div
-          class="chat-messages overflow-y-auto mb-4 space-y-4 bg-gray-800 rounded-lg p-4"
+          class="chat-messages overflow-y-auto mb-4 space-y-4 bg-transparent rounded-lg p-4"
         >
           <% if (Array.isArray(chatHistory) && chatHistory.length > 0) { %> <%
-          chatHistory.forEach(msg => { %> <% if (msg.role === 'user') { %>
-          <!-- User bubble -->
-          <div class="message-bubble p-4 bg-gray-700 ml-auto">
+          chatHistory.forEach(function(msg) { %> <% if (msg.role === 'user') {
+          %>
+          <!-- User message in bubble -->
+          <div class="message-bubble p-4 bg-gray-700 ml-auto rounded-lg">
             <%= msg.content %>
           </div>
           <% } else { %>
-          <!-- Assistant response, plain text, no bubble -->
+          <!-- Assistant response as plain text -->
           <div class="mt-2 text-gray-100"><%= msg.content %></div>
-          <% } %> <% }) %> <% } else { %>
-          <div class="text-gray-500 text-center py-12">
-            <p class="text-xl">Your chat history will appear here</p>
-            <p class="mt-2 text-sm">Start a conversation below</p>
-          </div>
-          <% } %>
+          <% } %> <% }); %> <% } %>
         </div>
 
         <!-- Input Area -->
@@ -136,11 +132,11 @@
           // Clear input immediately
           promptInput.value = "";
 
-          // Optionally add user bubble right away (live preview in UI)
+          // Add user message bubble
           addMessage(prompt, "user");
 
           try {
-            // You could show a "loading" message or spinner here if desired
+            // Show a loading indicator if desired
             const response = await fetch("/chat-gen", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -152,10 +148,9 @@
               throw new Error(data.error || "Unknown error");
             }
 
-            // Display assistant response as plain text (no bubble)
+            // Display assistant response as plain text
             addMessage(data.response, "assistant");
           } catch (error) {
-            // Show error in plain text
             addMessage(`Error: ${error.message}`, "assistant");
           }
         });
@@ -165,10 +160,10 @@
         const messageDiv = document.createElement("div");
         if (role === "user") {
           // User bubble
-          messageDiv.className = "message-bubble p-4 bg-gray-700 ml-auto mb-4";
+          messageDiv.className =
+            "message-bubble p-4 bg-gray-700 ml-auto mb-4 rounded-lg";
         } else {
-          // Assistant or error: plain text
-          messageDiv.className = "mt-2 text-gray-100 mb-4";
+          // Assistant or error: plain text\n          messageDiv.className = "mt-2 text-gray-100 mb-4";
         }
         messageDiv.textContent = content;
         chatMessages.appendChild(messageDiv);
